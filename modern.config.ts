@@ -6,4 +6,7 @@ export default defineConfig({
     router: true,
   },
   plugins: [appTools()],
+  dev: {
+    hmr: false,
+  },
 });

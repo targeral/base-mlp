@@ -13,7 +13,7 @@ class Network {
     this.sizes = sizes;
     this.num_layers = sizes.length;
     this.biases = sizes.slice(1).map(y => tf.randomNormal([y, 1]));
-    console.info('this.biases', this.biases);
+    // console.info('this.biases', this.biases);
     /**
      * [2 3 1]
      *
@@ -46,15 +46,15 @@ class Network {
   }
 
   feedforward(a: tf.Tensor<tf.Rank>): tf.Tensor<tf.Rank> {
-    console.info('a');
-    a.print();
+    // console.info('a');
+    // a.print();
     for (let i = 0; i < this.num_layers - 1; i++) {
       const b = this.biases[i];
       const w = this.weights[i];
-      console.info('b');
-      b.print()
-      console.info('w');
-      w.print()
+      // console.info('b');
+      // b.print();
+      // console.info('w');
+      // w.print();
 
       a = sigmoid(tf.add(tf.matMul(w, a), b));
     }
@@ -64,63 +64,118 @@ class Network {
   async SGD_v1(
     // [训练输入, 其对应的期望输出][]
     training_data: [tf.Tensor<tf.Rank>, tf.Tensor<tf.Rank>][],
+    epochs: number,
     eta: number,
   ) {
+    // debugger;
     const n = training_data.length;
-    console.info('训练数据量为', n);
-    // tf.util.shuffle(training_data);
+    // console.info('训练数据量为', n);
+    for (let j = 0; j < epochs; j++) {
+      console.info(`第${j + 1}训练开始:`);
+      // training_data.forEach(td => {
+      //   td[0].print();
+      //   td[1].print();
+      // });
+      tf.util.shuffle(training_data);
+      // training_data.forEach(td => {
+      //   td[0].print();
+      //   td[1].print();
+      // });
 
-    const nabla_b = this.biases.map(b => tf.zerosLike(b));
+      //损耗平均值
+      const costAgv = await this.update_mini_batch(training_data, eta);
+      console.info(`第${j + 1}训练完成,loss:`, costAgv);
+      // console.info('weights')
+      // this.weights.forEach(w => w.print());
+    }
+  }
+
+  async update_mini_batch(
+    mini_batch: [tf.Tensor<tf.Rank>, tf.Tensor<tf.Rank>][],
+    eta: number,
+  ) {
+    let nabla_b = this.biases.map(b => tf.zerosLike(b));
 
     // TODO: remove: start
-    console.info('nabla_b', nabla_b);
-    nabla_b.forEach(b => {
-      b.print();
-    });
+    // console.info('nabla_b', nabla_b);
+    // nabla_b.forEach(b => {
+    //   b.print();
+    // });
     // TODO: remove: end
 
-    const nabla_w = this.weights.map(w => tf.zerosLike(w));
+    let nabla_w = this.weights.map(w => tf.zerosLike(w));
     // TODO: remove: start
-    console.info('nabla_w', nabla_w);
-    nabla_w.forEach(w => {
-      w.print();
-    });
+    // console.info('nabla_w', nabla_w);
+    // nabla_w.forEach(w => {
+    //   w.print();
+    // });
     // TODO: remove: end
-
-    for (const [input, expect] of training_data) {
-      const [delta_nabla_b, delta_nabla_w] = await this.backprop(input, expect);
+    let costValueSum = 0;
+    for (const [input, expect] of mini_batch) {
+      const [delta_nabla_b, delta_nabla_w, costValue] = await this.backprop(
+        input,
+        expect,
+      );
+      costValueSum += costValue;
       // TODO: remove start
-      console.info('delta_nabla_b', delta_nabla_b);
-      delta_nabla_b.forEach(b => b.print());
-      console.info('delta_nabla_w', delta_nabla_w);
-      delta_nabla_w.forEach(w => w.print());
+      // console.info('delta_nabla_b', delta_nabla_b);
+      // delta_nabla_b.forEach(b => b.print());
+      // console.info('delta_nabla_w', delta_nabla_w);
+      // delta_nabla_w.forEach(w => w.print());
       // TODO: remove end
-      nabla_b.forEach((nb, i) => nb.add(delta_nabla_b[i]));
-      nabla_w.forEach((nw, i) => nw.add(delta_nabla_w[i]));
+      nabla_b = nabla_b.map((nb, i) => nb.add(delta_nabla_b[i]));
+      nabla_w = nabla_w.map((nw, i) => {
+        console.info(`====delta_nabla_w[${i}]====`, delta_nabla_w[i].arraySync())
+        console.info(`====before add ${i} ====`);
+        console.info(nw.arraySync());
+
+        console.info(`====after add ${i} ====`);
+        const ret = nw.add(delta_nabla_w[i]);
+        console.info('ret', ret.arraySync());
+        console.info(nw.arraySync());
+        return ret;
+      });
+      console.info('after backprop');
+      for (const [index, nw] of nabla_w.entries()) {
+        console.info(`第${index+1}层到${index+2}层的权重`)
+        console.info(await nw.array());
+      }
     }
 
+    // console.info('Cost Value:', costValueSum / mini_batch.length);
+
     // TODO: remove start
-    console.info('更新权重和编制的矩阵')
-    console.info('nabla_b', nabla_b);
-    nabla_b.forEach(b => b.print());
-    console.info('nabla_w', nabla_w);
-    nabla_w.forEach(w => w.print());
+    // console.info('更新权重和编制的矩阵');
+    // console.info('nabla_b', nabla_b);
+    // nabla_b.forEach(b => b.print());
+    // console.info('nabla_w', nabla_w);
+    // nabla_w.forEach(w => w.print());
     // TODO: remove end
 
-    this.weights = this.weights.map((w, i) =>
-      tf.sub(w, tf.mul(eta / n, nabla_w[i])),
-    );
+    this.weights = this.weights.map((w, i) => {
+      const ret = tf.sub(w, tf.mul(eta / mini_batch.length, nabla_w[i]));
+      console.info(i);
+      console.info('nabla_w[i]');
+      nabla_w[i].print();
+      console.info('new weight');
+      ret.print();
+      return ret;
+    });
 
     this.biases = this.biases.map((b, i) =>
-      tf.sub(b, tf.mul(eta / n, nabla_b[i])),
+      tf.sub(b, tf.mul(eta / mini_batch.length, nabla_b[i])),
     );
+
+    return costValueSum / mini_batch.length;
   }
 
   // 后续研究
   async backprop(
     x: tf.Tensor<tf.Rank>,
     y: tf.Tensor<tf.Rank>,
-  ): Promise<[tf.Tensor<tf.Rank>[], tf.Tensor<tf.Rank>[]]> {
+  ): Promise<[tf.Tensor<tf.Rank>[], tf.Tensor<tf.Rank>[], number]> {
+    // console.info('backprop');
+    // x.print(true);
     const nabla_b = this.biases.map(b => tf.zerosLike(b));
     const nabla_w = this.weights.map(w => tf.zerosLike(w));
 
@@ -143,13 +198,11 @@ class Network {
     const mse = tf.losses.meanSquaredError(y, activation);
     // 获取损失值的张量并转换为 JavaScript 数值
     const mseValue = mse.dataSync()[0];
-    console.info('答案:');
-    y.print();
-    console.info('训练的结果:');
-    activation.print();
-    console.info('Cost value:');
-    console.info(mseValue);
-
+    // console.info('答案:');
+    // y.print();
+    // console.info('训练的结果:');
+    // activation.print();
+    // console.info('损失值:', mseValue);
 
     // Backward pass
     let delta = tf.mul(
@@ -177,8 +230,12 @@ class Network {
         tf.transpose(activations[activations.length - l - 1]),
       );
     }
-
-    return [nabla_b, nabla_w];
+    for (const [index, w] of nabla_w.entries()) {
+      console.info(`第${index+1}层到${index+2}层的权重`)
+        const ret = await w.array();
+        console.info(ret)
+    }
+    return [nabla_b, nabla_w, mseValue];
   }
 
   async cost_derivative(
@@ -188,15 +245,14 @@ class Network {
     return tf.sub(output_activations, y);
   }
 
-
   print() {
     for (let i = 0; i < this.num_layers - 1; i++) {
       const b = this.biases[i];
       const w = this.weights[i];
       console.info('b');
-      b.print()
+      b.print();
       console.info('w');
-      w.print()
+      w.print();
     }
   }
 }
@@ -205,7 +261,6 @@ class Network {
 function sigmoid(z: tf.Tensor<tf.Rank>): tf.Tensor<tf.Rank> {
   return tf.div(1.0, tf.add(1.0, tf.exp(tf.neg(z))));
 }
-
 
 function sigmoid_prime(z: tf.Tensor<tf.Rank>): tf.Tensor<tf.Rank> {
   const sigmoid_z = sigmoid(z);
