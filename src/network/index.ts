@@ -255,6 +255,24 @@ class Network {
       w.print();
     }
   }
+
+  store() {
+    const weights = this.weights.map(w => w.arraySync());
+    const biases = this.biases.map(b => b.arraySync());
+    const jsonString = JSON.stringify({weights, biases});
+    const blob = new Blob([jsonString], {type: 'application/json'});
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    const filename = 'model.json';
+    a.download = filename;
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+  }
 }
 
 // Miscellaneous functions

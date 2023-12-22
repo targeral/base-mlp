@@ -18,7 +18,7 @@ const Index = (): JSX.Element => {
     // console.info('a', tf.tensor([1]).equal(tf.tensor([1])));
     const main = async () => {
       const training_data = transformJsonData2TrainData(trainData);
-      await net.SGD_v1(training_data, 78, 1000);
+      await net.SGD_v1(training_data, 78, 10);
       console.info('complete');
       setFinish(true);
     };
@@ -61,11 +61,16 @@ const Index = (): JSX.Element => {
     // console.info('outputData', outputData);
   };
 
+  const storeModel = () => {
+    net.store();
+  }
+
   return (
     <div className="container-box">
       <Generator onTestData={handleTestData}></Generator>
       {finish ? 'hello network' : 'traning'}
       <br />
+      <button onClick={storeModel}>存储模型</button>
     </div>
   );
 };
